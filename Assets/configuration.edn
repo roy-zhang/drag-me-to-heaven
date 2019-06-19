@@ -22,7 +22,7 @@
 
  ;; set to true in user configuration.edn to enable automatic code
  ;; reloading when a clojure file is saved
- :reload-on-change true
+ :reload-on-change false
 
  ;; You can add custom load paths, for more control over your source
  ;; organization. Note that this is purely additive and the default is empty.
@@ -37,7 +37,7 @@
  ;; non-serializable is attached to a gameObject
  :non-serializable-hooks :warning
 
- :nudge true
+ :nudge true}
 
  ;; Partially controls the socket-repl.
  ;;
@@ -60,5 +60,5 @@
  ;; see https://github.com/arcadia-unity/Arcadia/wiki/Stacktraces-and-Error-Reporting
  ;; for options on formatting thrown Exceptions
  ;; :error-options {:format true}
- }
+
 
