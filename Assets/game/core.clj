@@ -60,17 +60,51 @@
 ;(move! c2 (Vector3. 1 0 0))
 ;(objects-named "cyl")
 
+
+(defn ring-update [obj k]
+  (if (> -30
+         (.. (local-position obj) y))
+    (retire obj)
+    (local-position! obj (v3+ (local-position obj)
+                              (v3 0 -0.1 0)))))
+
+(defn make-ring [pat]
+  (let [ring (clone! :empty)]
+    (dorun
+      (map-indexed
+        (fn [i s]
+          (if (= s true)
+            (parent!
+             (gobj (rotate! (clone! :segment)
+                            (v3 0 (* i 60) 0)))
+             ring)))
+        pat))
+    (hook+ ring :update :ring-update ring-update)))
+
+(defn make-random-ring [obj k]
+  (let [pat (repeatedly 6 #(< 5 (rand-int 10) ))]
+    (make-ring pat)
+  ))
+
+(hook+ (object-named "player") :update :random-ring-update make-random-ring)
+
+(hook- (object-named "player") :update :random-ring-update)
+
+
+
+(.. (local-position (object-named "empty")) y)
+
 (defn handle-input [obj k]
   (when (hard.input/key? "a")
     (hard.core/rotate! obj (v3 0 -6 0)))
   (when (hard.input/key? "d")
     (hard.core/rotate! obj (v3 0 6 0)))
   (when (hard.input/key? "w")
-    (move! obj (v3 -1 0 0)))
+    (move! (first (children (object-named "player")))
+           (v3 0.1 0 0)))
   (when (hard.input/key? "s")
-    (hard.core/rotate! obj (v3 1 0 0))))
-
-(hard.core/clone! :segment)
+    (move! (first (children (object-named "player")))
+           (v3 -0.1 0 0))))
 
 
 (defn start-game [o]
@@ -81,7 +115,7 @@
   (let [player (hard.core/clone! :player)]
     (hook+ player :update :handle-input handle-input)))
 
-(hook- (object-named "player") :update :handle-input)
+;(hook- (object-named "player") :update :handle-input)
 
 (start-game nil)
 
