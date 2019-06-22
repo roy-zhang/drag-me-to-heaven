@@ -1,6 +1,8 @@
 (ns game.core
-  (:use arcadia.core arcadia.linear hard.core)
-  (:require [hard.input :as input])
+  (:use arcadia.core hard.core)
+  (:require [hard.input :as input]
+            [arcadia.linear :as l]
+            [game.obstacles :as obs])
   (:import [UnityEngine Vector3 Transform Time]))
 
 (log "abc")
@@ -8,104 +10,51 @@
 
 (defn move! [go v3]
   (set! (.. go transform position)
-        (v3+ (.. go transform position)
+        (l/v3+ (.. go transform position)
                v3)))
 
-(defn def-move! [go _]
-  (let [offset (Vector3. 0.01 0 0)]
-    (move! go offset)))
+;(defn def-move! [go _]
+;  (let [offset (Vector3. 0.01 0 0)]
+;    (move! go offset)))
+;
+;;(hook+ c1 :update :move def-move!)
+;;(hook- c1 :update :move)
 
-(hook+ c1 :update :move def-move!)
-(hook- c1 :update :move)
-
-(defn log-collision [obj role-key collision]
-  (log "just bumped into" (.. collision gameObject name)))
-(hook+ c1 :on-collision-enter :log-collision log-collision)
-
-(move! c1 (Vector3. 1 0 0))
+;(defn log-collision [obj role-key collision]
+;  (log "just bumped into" (.. collision obj name)))
+;(hook+ c1 :on-collision-enter :log-collision log-collision)
 
 
+;(defn rotate [obj role-key]
+;  (.. obj transform (Rotate 0 1 0)))
+;
+;(hook+ (object-named "camera") :update :rotation rotate)
+;(hook- (object-named "camera") :update :rotation)
 
-(defn orbit [^GameObject obj, k]         ; Takes the GameObject and the key this function was attached with
-  (let [{:keys [:radius]} (state obj k)] ; Looks up the piece of state corresponding to the key `k`
-    (with-cmpt obj [tr Transform]
-               (set! (. tr position)
-                     (l/v3 (* radius (Mathf/Cos Time/realtimeSinceStartup))
-                         0
-                         (* radius (Mathf/Sin Time/realtimeSinceStartup)))))))
+;; same as Camera.main.transform.LookAt(p)
+;(defn point-camera [p]
+;  (.. Camera/main transform (LookAt p)))
 
-(defn add-orbiter []
-  (let [gobj (create-primitive :cube "Orbiter")]
-    (state+ gobj :orbit {:radius 5})          ; set up state
-    (hook+ gobj :fixed-update :orbit orbit))) ; set up message callback (hook)
+(obs/make-random-ring nil nil)
 
-(hook- (object-named "Orbiter") :fixed-update :orbit)
-
-
-(defn rotate [obj role-key]
-  (.. obj transform (Rotate 0 1 0)))
-
-(hook+ (object-named "camera") :update :rotation rotate)
-(hook- (object-named "camera") :update :rotation)
-
-
-
-; same as Camera.main.transform.LookAt(p)
-(defn point-camera [p]
-  (.. Camera/main transform (LookAt p)))
-
-
-;; repl commands here
-
-;(move! c2 (Vector3. 1 0 0))
-;(objects-named "cyl")
-
-
-(defn ring-update [obj k]
-  (if (> -30
-         (.. (local-position obj) y))
-    (retire obj)
-    (local-position! obj (v3+ (local-position obj)
-                              (v3 0 -0.1 0)))))
-
-(defn make-ring [pat]
-  (let [ring (clone! :empty)]
-    (dorun
-      (map-indexed
-        (fn [i s]
-          (if (= s true)
-            (parent!
-             (gobj (rotate! (clone! :segment)
-                            (v3 0 (* i 60) 0)))
-             ring)))
-        pat))
-    (hook+ ring :update :ring-update ring-update)))
-
-(defn make-random-ring [obj k]
-  (let [pat (repeatedly 6 #(< 5 (rand-int 10) ))]
-    (make-ring pat)
-  ))
-
-(hook+ (object-named "player") :update :random-ring-update make-random-ring)
-
+(hook+ (object-named "player") :update :random-ring-update obs/make-random-ring)
 (hook- (object-named "player") :update :random-ring-update)
-
-
 
 (.. (local-position (object-named "empty")) y)
 
 (defn handle-input [obj k]
-  (when (hard.input/key? "a")
-    (hard.core/rotate! obj (v3 0 -6 0)))
-  (when (hard.input/key? "d")
-    (hard.core/rotate! obj (v3 0 6 0)))
-  (when (hard.input/key? "w")
-    (move! (first (children (object-named "player")))
-           (v3 0.1 0 0)))
-  (when (hard.input/key? "s")
-    (move! (first (children (object-named "player")))
-           (v3 -0.1 0 0))))
-
+  (when (input/key? "q")
+    (hard.core/rotate! obj (l/v3 0 -6 0)))
+  (when (input/key? "e")
+    (hard.core/rotate! obj (l/v3 0 6 0)))
+  (when (input/key? "a")
+    (move! obj (l/v3 -0.1 0 0)))
+  (when (input/key? "d")
+    (move! obj (l/v3 0.1 0 0)))
+  (when (input/key? "w")
+    (move! obj (l/v3 0 0 -0.1)))
+  (when (input/key? "s")
+    (move! obj (l/v3 0 0 0.1))))
 
 (defn start-game [o]
   (hard.core/clear-cloned!)
@@ -118,15 +67,3 @@
 ;(hook- (object-named "player") :update :handle-input)
 
 (start-game nil)
-
-
-
-;; run instructions:
-;; start unity, hit play button
-;; lein run in the tools.cursive-arcadia-repl
-;; start the connect build config on port 7889
-;; meta-shift-n switch namespace meta-shift-l load-file meta-enter load top-level
-
-;; install instructions:
-;; clone tools.cursive-arcadia-repl into assets
-;; clone notabug.com hard.core in the assets folder
