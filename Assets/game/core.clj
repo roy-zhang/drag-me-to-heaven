@@ -56,14 +56,24 @@
   (when (input/key? "s")
     (move! obj (l/v3 0 0 0.1))))
 
+(defn player-collision-fn [obj role-key collision]
+  (log collision))
+
 (defn start-game [o]
   (hard.core/clear-cloned!)
   (hard.core/clone! :camera)
   (hard.core/clone! :sun)
-  (hard.core/clone! :segment)
-  (let [player (hard.core/clone! :player)]
+  (hard.core/clone! :tube)
+  (let [player (hard.core/clone! :player)
+        head (first (children player))]
+    (hook+ head :on-trigger-enter :player-collision player-collision-fn)
     (hook+ player :update :handle-input handle-input)))
 
-;(hook- (object-named "player") :update :handle-input)
+(hook- (object-named "player") :update :handle-input)
+(hard.core/clone! :segment)
+(hard.core/clear-cloned!)
+
+(def big-tube (create-primitive :cylinder))
+
 
 (start-game nil)
