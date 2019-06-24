@@ -1,46 +1,63 @@
 (ns game.obstacles
-  (:use arcadia.core arcadia.linear hard.core tween.core))
+  (:use arcadia.core arcadia.linear hard.core tween.core)
+  (:import [UnityEngine Vector3 Mathf]))
 
 (def y-to-retire -3)
+(def y-drop-height 25)
 
-(defn ring-update [obj k]
+;; mutating state
+(def tube-drop-x (atom 0))
+(def tube-drop-y (atom 0))
+
+(defn retire-update [obj k]
   (when (> y-to-retire (Y obj))
     (retire obj)))
 
-(defn make-ring [pat]
+(defn make-ring [pat x y]
   (dorun
     (map-indexed
       (fn [i s]
         (if (= s true)
           (let [segment (clone! :segment)]
+            (position! segment (v3 x y-drop-height (* -1 y)))
             (rotate! segment (v3 0 (* i 60) 0))
-            (hook+ segment :update :ring-update ring-update))))
+            (hook+ segment :update :retire-update retire-update))))
       pat)))
 
-(defn make-random-ring [obj k]
-  (let [pat (repeatedly 6 #(< 5 (rand-int 10)))]
-    (make-ring pat)))
-
-(make-random-ring nil nil)
-
-(defn start-dropping-rings! [intensity]
+(defn start-dropping-rings! [delay]
   (timeline* :loop
-             (wait intensity)
-             #(do (make-random-ring nil nil) nil)))
+             (wait delay)
+             (fn []
+               (let [pat (repeatedly 6 #(< 5 (rand-int 10)))]
+                 (make-ring pat @tube-drop-x @tube-drop-y)))))
 
 ;; secs between drops
-(start-dropping-rings! 0.5)
+(start-dropping-rings! 1)
 
-(defn make-random-wall [pat]
-  (dorun
-    (map-indexed
-      (fn [i s]
-        (if (= s true)
-          (let [segment (clone! :wall-plank)]
-            (rotate! segment (v3 0 (* i 60) 0))
-            (hook+ segment :update :ring-update ring-update))))
-      pat)))
+(defn make-tube [x y] ;; absolute x y spawn location
+  (let [tube (clone! :tube)]
+    (position! tube (v3 x y-drop-height (* -1 y)))
+    (hook+ tube :update :retire-update retire-update)))
 
+
+(println @tube-drop-y)
+
+(defn start-dropping-tube! [delay]
+  (timeline* :loop
+             (wait delay)
+             #(do (make-tube @tube-drop-x @tube-drop-y)
+                  (reset! tube-drop-x (Mathf/Clamp
+                                        (+ @tube-drop-x (* 0.4 (- (rand) 0.5)))
+                                        -1 1))
+                  (reset! tube-drop-y (Mathf/Clamp
+                                        (+ @tube-drop-y (* 0.4 (- (rand) 0.5)))
+                                        -1 1))
+                  nil)))
+
+(start-dropping-tube! 0.5)
 
 ;; stop dropping stuff
-(map retire (objects-named "tween.core/-mono-obj"))
+(defn stop-dropping-everything []
+  (map retire (objects-named "tween.core/-mono-obj")))
+
+(stop-dropping-everything)
