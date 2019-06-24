@@ -3,11 +3,7 @@
   (:import [UnityEngine Vector3 Mathf]))
 
 (def y-to-retire -3)
-(def y-drop-height 25)
-
-;; mutating state
-(def tube-drop-x (atom 0))
-(def tube-drop-y (atom 0))
+(def y-drop-height 45)
 
 (defn retire-update [obj k]
   (when (> y-to-retire (Y obj))
@@ -24,25 +20,21 @@
             (hook+ segment :update :retire-update retire-update))))
       pat)))
 
-(defn start-dropping-rings! [delay]
+(defn start-dropping-rings! [delay tube-drop-x tube-drop-y]
   (timeline* :loop
              (wait delay)
              (fn []
                (let [pat (repeatedly 6 #(< 5 (rand-int 10)))]
                  (make-ring pat @tube-drop-x @tube-drop-y)))))
 
-;; secs between drops
-(start-dropping-rings! 1)
+;; secs between dropsd
 
 (defn make-tube [x y] ;; absolute x y spawn location
   (let [tube (clone! :tube)]
     (position! tube (v3 x y-drop-height (* -1 y)))
     (hook+ tube :update :retire-update retire-update)))
 
-
-(println @tube-drop-y)
-
-(defn start-dropping-tube! [delay]
+(defn start-dropping-tube! [delay tube-drop-x tube-drop-y]
   (timeline* :loop
              (wait delay)
              #(do (make-tube @tube-drop-x @tube-drop-y)
@@ -53,8 +45,6 @@
                                         (+ @tube-drop-y (* 0.4 (- (rand) 0.5)))
                                         -1 1))
                   nil)))
-
-(start-dropping-tube! 0.5)
 
 ;; stop dropping stuff
 (defn stop-dropping-everything []
