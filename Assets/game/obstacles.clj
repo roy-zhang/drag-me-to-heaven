@@ -17,7 +17,8 @@
           (let [segment (clone! :segment)]
             (position! segment (v3 x y-drop-height y))
             (rotate! segment (v3 0 (* i 60) 0))
-            (hook+ segment :update :retire-update retire-update))))
+            (material-color! segment (color 1 0 0))
+            (hook+ segment :update :retire-update  #'retire-update))))
       pat)))
 
 (defn start-dropping-rings! [delay drop-x drop-y]
@@ -33,7 +34,7 @@
 (defn drop-obj [drop-me x y]
   (position! drop-me (v3 x mountain-y-drop-height y))
   (rotate! drop-me (v3 0 (rand 360) 0))
-  (hook+ drop-me :update :retire-update retire-update)
+  (hook+ drop-me :update :retire-update  #'retire-update)
   nil)
 
 
@@ -46,5 +47,3 @@
 ;; stop dropping stuff
 (defn stop-dropping-everything []
   (map retire (objects-named "tween.core/-mono-obj")))
-
-(stop-dropping-everything)

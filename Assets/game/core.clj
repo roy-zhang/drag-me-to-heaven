@@ -1,10 +1,11 @@
 (ns game.core
-  (:use arcadia.core hard.core tween.core)
+  (:use arcadia.core hard.core)
   (:require [hard.input :as input]
+            [tween.core :as tween]
             [arcadia.linear :as l]
             [game.obstacles :as obs]
             [game.util :as util])
-  (:import [UnityEngine Vector3 Transform Time Mathf Screen SpringJoint LineRenderer]))
+  (:import [UnityEngine Vector3 Transform Time Mathf Screen SpringJoint LineRenderer Camera]))
 
 (def stage (atom :start))
 
@@ -49,48 +50,30 @@
 (defn player-collision-fn [obj role-key collision]
   (log collision))
 
-(defn start-title [o])
 
-(defn start-moving-drop! [delay drop-x drop-y]
-  (timeline* :loop
-             (wait delay)
-             #(do (reset! drop-x (Mathf/Clamp
-                                   (+ @drop-x (* 4 (- (rand) 0.5)))
-                                   -20 20))
-                  (reset! drop-y (Mathf/Clamp
-                                   (+ @drop-y (* 4 (- (rand) 0.5)))
-                                   -20 20))
-                  nil)))
-
-;; mutating state
 (def drop-x (atom 0))
 (def drop-y (atom 0))
 
-
-(obs/drop-obj (clone! :mountain1) @drop-x @drop-y)
-(rotate! (object-named "mountain1") (l/v3 0 30 0))
-
-(def x (clone! :mountain1))
-(rotate! x (l/v3 45 0 45))
+(defmutable dropper-x [^float x])
+(defmutable dropper-y [^float y])
 
 
-(defn start-falling-objs [o]
-  (obs/stop-dropping-everything)
-  (start-moving-drop! 0.5 drop-x drop-y)
-  (obs/start-dropping-mountains! 3 drop-x drop-y)
-  (obs/start-dropping-rings! 1 drop-x drop-y))
+(defn rand-adj [i]
+  (Mathf/Clamp
+    (+ i (* 0.3 (- (rand) 0.5)))
+    -20 20))
 
-(println @drop-x " " @drop-y)
-(println (local-position (object-named "chain-top")))
+(defn start-moving-drop! [_ _]
+  (swap! drop-x rand-adj)
+  (swap! drop-y rand-adj))
 
-(def player-obj (atom (clone! :player)))
-(def camera-obj (atom (hard.core/clone! :camera)))
+;(println @drop-x " " @drop-y)
+;(println (local-position (object-named "chain-top")))
 
-(def camera-speed 0.15) ;; percent of distance
 (defn camera-chase-player [obj role]
-  (util/move! @camera-obj (util/move-towards-vec (local-position @camera-obj)
-                                                 (local-position @player-obj)
-                                                 camera-speed)))
+  (util/move! obj (util/move-towards-vec (local-position obj)
+                                         (local-position @player-obj)
+                                         0.15))) ; percent of distance
 
 (defn chain-chase-drop [obj role]
   (local-position! obj (l/v3 @drop-x 50 @drop-y)))
@@ -103,24 +86,86 @@
         (util/set-line-renderer-verts [top-pos, bottom-pos])
         (.SetWidth 0.1, 0.1))))
 
+
+(hook- (object-named "game-state") :fixed-update :moving-drop)
+(hook+ (object-named "game-state") :fixed-update :moving-drop start-moving-drop!)
+
+(defn start-falling [o]
+  (obs/stop-dropping-everything)
+  (reset! drop-x 0)
+  (reset! drop-y 0)
+  (let [game-state (clone! :game-state)]
+    (hook+ game-state :fixed-update :moving-drop start-moving-drop!)
+    ;(obs/start-dropping-mountains! 5 drop-x drop-y)
+    (obs/start-dropping-rings! 1 drop-x drop-y)))
+
+(start-falling nil)
+
+
+(defn slow-pan [camera-obj _]
+  (.. camera-obj transform (LookAt (local-position @player-obj)))
+  (local-position! camera-obj (l/v3 (* 4 (Mathf/Cos (/ Time/realtimeSinceStartup 5)))
+                                    0
+                                    (* 4 (Mathf/Sin (/ Time/realtimeSinceStartup 5))))))
+
+(defn start-going-up! [obj _]
+  (util/move! obj (l/v3 0 0.5 0)))
+
+(defn transition-to-fall-on-input [_ _]
+  (when (and (= @stage :start)
+             (or (input/key? "w") (input/key? "w") (input/key? "w") (input/key? "w")))
+    (tween/timeline
+      [#(log "start")
+       #(do (reset! stage :transitioning-to-fall) nil)
+       (tween/wait 4)
+       #(log "chain")
+       #(do
+          (let [chain-top (clone! :chain-top)]
+            (hook+ chain-top :update :follow-drop-point #'chain-chase-drop)
+            (hook+ chain-top :update :update-chain  #'update-chain))
+          nil);; play little rise animation, then transition to :fall
+       (tween/wait 4)
+       #(log "going up")
+       #(do (hook+ @player-obj :fixed-update :start-going-up #'start-going-up!)
+            nil)
+       (tween/wait 4)
+       #(log "next stage")
+       #(do (start-game :fall) nil)])))
+
+
+
+
 (defn start-game [new-stage]
   (reset! stage new-stage)
   (hard.core/clear-cloned!)
-  (reset! drop-x 0)
-  (reset! drop-y 0)
-  (reset! player-obj (clone! :player))
-  (reset! camera-obj (clone! :camera))
   (obs/stop-dropping-everything)
 
-  (when (= :fall new-stage)
+  (when (= new-stage :start)
+    (reset! camera-obj (clone! :start-camera))
+    (reset! player-obj (clone! :player))
+    (clone! :title-text)
+    (-> (clone! :dunes)
+      (material-color! (color 0 0 0)))
+    (hook+ @camera-obj :fixed-update :slow-pan #'slow-pan)
+    (hook+ @player-obj :update :transition-to-fall-on-input transition-to-fall-on-input))
+
+  (when (= new-stage :start-to-fall))
+
+  (when (= new-stage :fall)
     (hard.core/clone! :sun)
-    ;(hard.core/clone! :hell-sun)
+    (reset! player-obj (clone! :player))
+    (reset! camera-obj (clone! :fall-camera))
+
     (let [head (first (children @player-obj))]
-      (hook+ @player-obj :update :handle-input handle-input)
-      (hook+ head :on-trigger-enter :player-collision player-collision-fn)
-      (hook+ @camera-obj :update :chase-player camera-chase-player)
+      (hook+ @player-obj :update :handle-input  #'handle-input)
+      (hook+ head :on-trigger-enter :player-collision  #'player-collision-fn)
+      (hook+ @camera-obj :update :chase-player  #'camera-chase-player)
       (let [chain-top (clone! :chain-top)]
         (hook+ chain-top :update :follow-drop-point chain-chase-drop)
-        (hook+ chain-top :update :update-chain update-chain)))))
+        (hook+ chain-top :update :update-chain  #'update-chain)))))
 
-(start-game :fall)
+(start-game :start)
+
+(start-game :reset)
+;(start-falling-objs nil)
+

@@ -21,7 +21,10 @@
   ([_ _] nil)
   ([_ _ _] nil))
 
+;; use this to generate simple chain points to draw
 (defn bezier-verts [start end sectionsCount])
+
+
 
 (defn set-line-renderer-verts ^LineRenderer [^LineRenderer lr, verts]
   (.SetVertexCount lr (count verts))
