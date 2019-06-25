@@ -8,42 +8,12 @@
 
 (def stage (atom :start))
 
-;(defn def-move! [go _]
-;  (let [offset (Vector3. 0.01 0 0)]
-;    (move! go offset)))
-;
 ;(defn log-collision [obj role-key collision]
 ;  (log "just bumped into" (.. collision obj name)))
 ;(hook+ c1 :on-collision-enter :log-collision log-collision)
 
-
-;(defn rotate [obj role-key]
-;  (.. obj transform (Rotate 0 1 0)))
-;
-;(hook+ (object-named "camera") :update :rotation rotate)
-;(hook- (object-named "camera") :update :rotation)
-
-;; same as Camera.main.transform.LookAt(p)
 ;(defn point-camera [p]
 ;  (.. Camera/main transform (LookAt p)))
-
-;(obs/make-random-ring nil nil)
-;(hook+ (object-named "player") :update :random-ring-update obs/make-random-ring)
-;(hook- (object-named "player") :update :random-ring-update)
-
-;(.. (local-position (object-named "empty")) y)
-
-;; the closer to 2, the less it gets advanced
-;; other-axis-value lowers the ceiling of movement to
-;(defn constrained-movement [current-val going-further? other-axis-val]
-;  (if going-further? ; meaning going distal
-;    (* (- 4
-;          (+ (pow current-val 2) (pow other-axis-val 2)))
-;       (if (pos? current-val) 0.05 -0.05))
-;    (if (pos? current-val)
-;      -0.1
-;      0.1)))
-
 
 (declare start-game)
 
@@ -85,11 +55,11 @@
   (timeline* :loop
              (wait delay)
              #(do (reset! drop-x (Mathf/Clamp
-                                   (+ @drop-x (* 0.4 (- (rand) 0.5)))
-                                   -1 1))
+                                   (+ @drop-x (* 4 (- (rand) 0.5)))
+                                   -20 20))
                   (reset! drop-y (Mathf/Clamp
-                                   (+ @drop-y (* 0.4 (- (rand) 0.5)))
-                                   -1 1))
+                                   (+ @drop-y (* 4 (- (rand) 0.5)))
+                                   -20 20))
                   nil)))
 
 ;; mutating state
@@ -102,6 +72,9 @@
   (obs/start-dropping-tube! 0.5 drop-x drop-y)
   (obs/start-dropping-rings! 1 drop-x drop-y))
 
+(println @drop-x " " @drop-y)
+(println (local-position (object-named "chain-top")))
+
 (def player-obj (atom (clone! :player)))
 (def camera-obj (atom (hard.core/clone! :camera)))
 
@@ -111,21 +84,22 @@
                                                  (local-position @player-obj)
                                                  camera-speed)))
 
+(defn chain-chase-drop [obj role]
+  (local-position! obj (l/v3 @drop-x 50 @drop-y)))
+
 (defn update-chain [chain-top _]
   (let [line-renderer (cmpt chain-top LineRenderer)
         top-pos (local-position chain-top)
-        bottom-pos (-> @player-obj children first children second world-position)]
+        bottom-pos (-> @player-obj local-position)]
     (-> line-renderer
         (util/set-line-renderer-verts [top-pos, bottom-pos])
         (.SetWidth 0.1, 0.1))))
 
-
-(util/set-line-renderer-verts (cmpt (object-named "chain-top") LineRenderer) [(local-position (object-named "chain-top"))
-                                                                              (-> @player-obj children first children second world-position)])
-
 (defn start-game [new-stage]
   (reset! stage new-stage)
   (hard.core/clear-cloned!)
+  (reset! drop-x 0)
+  (reset! drop-y 0)
   (reset! player-obj (clone! :player))
   (reset! camera-obj (clone! :camera))
   (obs/stop-dropping-everything)
@@ -138,10 +112,7 @@
       (hook+ head :on-trigger-enter :player-collision player-collision-fn)
       (hook+ @camera-obj :update :chase-player camera-chase-player)
       (let [chain-top (clone! :chain-top)]
+        (hook+ chain-top :update :follow-drop-point chain-chase-drop)
         (hook+ chain-top :update :update-chain update-chain)))))
 
-(hook+ (object-named "chain-top") :update :update-chain update-chain)
-(hook- (object-named "chain-top") :update :update-chain)
-
-(second (children (first (children @player-obj))))
 (start-game :fall)

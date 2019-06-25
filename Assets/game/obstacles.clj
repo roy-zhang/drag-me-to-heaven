@@ -15,7 +15,7 @@
       (fn [i s]
         (if (= s true)
           (let [segment (clone! :segment)]
-            (position! segment (v3 x y-drop-height (* -1 y)))
+            (position! segment (v3 x y-drop-height y))
             (rotate! segment (v3 0 (* i 60) 0))
             (hook+ segment :update :retire-update retire-update))))
       pat)))
