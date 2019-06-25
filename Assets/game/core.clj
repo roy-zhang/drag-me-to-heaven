@@ -66,10 +66,18 @@
 (def drop-x (atom 0))
 (def drop-y (atom 0))
 
+
+(obs/drop-obj (clone! :mountain1) @drop-x @drop-y)
+(rotate! (object-named "mountain1") (l/v3 0 30 0))
+
+(def x (clone! :mountain1))
+(rotate! x (l/v3 45 0 45))
+
+
 (defn start-falling-objs [o]
   (obs/stop-dropping-everything)
   (start-moving-drop! 0.5 drop-x drop-y)
-  (obs/start-dropping-tube! 0.5 drop-x drop-y)
+  (obs/start-dropping-mountains! 3 drop-x drop-y)
   (obs/start-dropping-rings! 1 drop-x drop-y))
 
 (println @drop-x " " @drop-y)

@@ -20,31 +20,28 @@
             (hook+ segment :update :retire-update retire-update))))
       pat)))
 
-(defn start-dropping-rings! [delay tube-drop-x tube-drop-y]
+(defn start-dropping-rings! [delay drop-x drop-y]
   (timeline* :loop
              (wait delay)
              (fn []
                (let [pat (repeatedly 6 #(< 5 (rand-int 10)))]
-                 (make-ring pat @tube-drop-x @tube-drop-y)))))
+                 (make-ring pat @drop-x @drop-y)))))
 
-;; secs between dropsd
 
-(defn make-tube [x y] ;; absolute x y spawn location
-  (let [tube (clone! :tube)]
-    (position! tube (v3 x y-drop-height (* -1 y)))
-    (hook+ tube :update :retire-update retire-update)))
+(def mountain-y-drop-height 240)
 
-(defn start-dropping-tube! [delay tube-drop-x tube-drop-y]
+(defn drop-obj [drop-me x y]
+  (position! drop-me (v3 x mountain-y-drop-height y))
+  (rotate! drop-me (v3 0 (rand 360) 0))
+  (hook+ drop-me :update :retire-update retire-update)
+  nil)
+
+
+(defn start-dropping-mountains! [delay drop-x drop-y]
   (timeline* :loop
              (wait delay)
-             #(do (make-tube @tube-drop-x @tube-drop-y)
-                  (reset! tube-drop-x (Mathf/Clamp
-                                        (+ @tube-drop-x (* 0.4 (- (rand) 0.5)))
-                                        -1 1))
-                  (reset! tube-drop-y (Mathf/Clamp
-                                        (+ @tube-drop-y (* 0.4 (- (rand) 0.5)))
-                                        -1 1))
-                  nil)))
+             (fn []
+               (drop-obj (clone! :mountain1) @drop-x @drop-y))))
 
 ;; stop dropping stuff
 (defn stop-dropping-everything []
