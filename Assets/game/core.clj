@@ -4,21 +4,14 @@
             [arcadia.linear :as l]
             [game.obstacles :as obs]
             [game.util :as util])
-  (:import [UnityEngine Vector3 Transform Time Mathf Screen]))
+  (:import [UnityEngine Vector3 Transform Time Mathf Screen SpringJoint LineRenderer]))
 
 (def stage (atom :start))
 
-(defn move! ^GameObject [^GameObject go ^Vector3 v3]
-  (set! (.. go transform position)
-        (l/v3+ (.. go transform position)
-               v3)))
 ;(defn def-move! [go _]
 ;  (let [offset (Vector3. 0.01 0 0)]
 ;    (move! go offset)))
 ;
-;;(hook+ c1 :update :move def-move!)
-;;(hook- c1 :update :move)
-
 ;(defn log-collision [obj role-key collision]
 ;  (log "just bumped into" (.. collision obj name)))
 ;(hook+ c1 :on-collision-enter :log-collision log-collision)
@@ -50,22 +43,7 @@
 ;    (if (pos? current-val)
 ;      -0.1
 ;      0.1)))
-;(when (input/key? "w")
-;  (move! obj (l/v3 (constrained-movement (X obj)
-;                                         (pos? (X obj))
-;                                         (Z obj)) 0 0)))
-;(when (input/key? "a")
-;  (move! obj (l/v3 0 0 (constrained-movement (Z obj)
-;                                             (neg? (Z obj))
-;                                             (X obj)))))
-;(when (input/key? "s")
-;  (move! obj (l/v3 (constrained-movement (X obj)
-;                                         (neg? (X obj))
-;                                         (Z obj)) 0 0)))
-;(when (input/key? "d")
-;  (move! obj (l/v3 0 0 (constrained-movement (Z obj)
-;                                             (pos? (Z obj))
-;                                             (X obj)))))
+
 
 (declare start-game)
 
@@ -90,14 +68,13 @@
     (hard.core/rotate! obj (l/v3 0 6 0)))
 
   (when (input/key? "w")
-    (move! obj (l/v3 player-speed 0 0)))
+    (util/move! obj (l/v3 player-speed 0 0)))
   (when (input/key? "a")
-    (move! obj (l/v3 0 0 -player-speed)))
+    (util/move! obj (l/v3 0 0 -player-speed)))
   (when (input/key? "s")
-    (move! obj (l/v3 -player-speed 0 0)))
+    (util/move! obj (l/v3 -player-speed 0 0)))
   (when (input/key? "d")
-    (move! obj (l/v3 0 0 player-speed))))
-
+    (util/move! obj (l/v3 0 0 player-speed))))
 
 (defn player-collision-fn [obj role-key collision]
   (log collision))
@@ -130,9 +107,21 @@
 
 (def camera-speed 0.15) ;; percent of distance
 (defn camera-chase-player [obj role]
-  (move! @camera-obj (util/move-towards-vec (local-position @camera-obj)
-                                            (local-position @player-obj)
-                                            camera-speed)))
+  (util/move! @camera-obj (util/move-towards-vec (local-position @camera-obj)
+                                                 (local-position @player-obj)
+                                                 camera-speed)))
+
+(defn update-chain [chain-top _]
+  (let [line-renderer (cmpt chain-top LineRenderer)
+        top-pos (local-position chain-top)
+        bottom-pos (-> @player-obj children first children second world-position)]
+    (-> line-renderer
+        (util/set-line-renderer-verts [top-pos, bottom-pos])
+        (.SetWidth 0.1, 0.1))))
+
+
+(util/set-line-renderer-verts (cmpt (object-named "chain-top") LineRenderer) [(local-position (object-named "chain-top"))
+                                                                              (-> @player-obj children first children second world-position)])
 
 (defn start-game [new-stage]
   (reset! stage new-stage)
@@ -144,10 +133,15 @@
   (when (= :fall new-stage)
     (hard.core/clone! :sun)
     ;(hard.core/clone! :hell-sun)
-    (hard.core/clone! :tube)
     (let [head (first (children @player-obj))]
       (hook+ @player-obj :update :handle-input handle-input)
       (hook+ head :on-trigger-enter :player-collision player-collision-fn)
-      (hook+ @camera-obj :update :chase-player camera-chase-player))))
+      (hook+ @camera-obj :update :chase-player camera-chase-player)
+      (let [chain-top (clone! :chain-top)]
+        (hook+ chain-top :update :update-chain update-chain)))))
 
+(hook+ (object-named "chain-top") :update :update-chain update-chain)
+(hook- (object-named "chain-top") :update :update-chain)
+
+(second (children (first (children @player-obj))))
 (start-game :fall)
