@@ -9,19 +9,24 @@
 
 (def stage (atom :start))
 
-;(defn log-collision [obj role-key collision]
-;  (log "just bumped into" (.. collision obj name)))
-;(hook+ c1 :on-collision-enter :log-collision log-collision)
+(defn log-collision [obj role-key collision]
+  (log "just bumped into" (.. collision obj name)))
 
-;(defn point-camera [p]
-;  (.. Camera/main transform (LookAt p)))
-
-(declare start-game)
+(declare start-stage!)
 
 (def player-speed 0.075)
 (def -player-speed (* -1 player-speed))
 
+(defn handle-stage-select-input []
+  (cond
+    (input/key? "0") (start-stage! :reset)
+    (input/key? "1") (start-stage! :start)
+    (input/key? "2") (start-stage! :fall)
+    :else nil))
+
 (defn handle-input [obj k]
+  (handle-stage-select-input)
+
   (when (input/key? "1")
     (do
       (obs/stop-dropping-everything)
@@ -29,7 +34,7 @@
   (when (input/key? "2")
     (do
       (reset! stage :fall)
-      (start-game :fall)))
+      (start-stage! :fall)))
   (when (input/key? "3")
     (reset! state :jump))
 
@@ -47,16 +52,11 @@
   (when (input/key? "d")
     (util/move! obj (l/v3 0 0 player-speed))))
 
-(defn player-collision-fn [obj role-key collision]
-  (log collision))
-
-
 (def drop-x (atom 0))
 (def drop-y (atom 0))
 
-(defmutable dropper-x [^float x])
-(defmutable dropper-y [^float y])
-
+;(defmutable dropper-x [^float x])
+;(defmutable dropper-y [^float y])
 
 (defn rand-adj [i]
   (Mathf/Clamp
@@ -86,56 +86,51 @@
         (util/set-line-renderer-verts [top-pos, bottom-pos])
         (.SetWidth 0.1, 0.1))))
 
-
-(hook- (object-named "game-state") :fixed-update :moving-drop)
-(hook+ (object-named "game-state") :fixed-update :moving-drop start-moving-drop!)
-
 (defn start-falling [o]
   (obs/stop-dropping-everything)
   (reset! drop-x 0)
   (reset! drop-y 0)
   (let [game-state (clone! :game-state)]
-    (hook+ game-state :fixed-update :moving-drop start-moving-drop!)
+    (hook+ game-state :fixed-update :moving-drop #'start-moving-drop!)
     ;(obs/start-dropping-mountains! 5 drop-x drop-y)
     (obs/start-dropping-rings! 1 drop-x drop-y)))
 
-(start-falling nil)
 
+;; ------------ start stage
 
 (defn slow-pan [camera-obj _]
   (.. camera-obj transform (LookAt (local-position @player-obj)))
   (local-position! camera-obj (l/v3 (* 4 (Mathf/Cos (/ Time/realtimeSinceStartup 5)))
-                                    0
+                                    (Y camera-obj)
                                     (* 4 (Mathf/Sin (/ Time/realtimeSinceStartup 5))))))
 
-(defn start-going-up! [obj _]
-  (util/move! obj (l/v3 0 0.5 0)))
+(defn start-going-up! [speed]
+  (fn [obj _]
+    (util/move! obj (l/v3 0 speed 0))))
 
 (defn transition-to-fall-on-input [_ _]
+  (handle-stage-select-input)
   (when (and (= @stage :start)
              (or (input/key? "w") (input/key? "w") (input/key? "w") (input/key? "w")))
     (tween/timeline
-      [#(log "start")
-       #(do (reset! stage :transitioning-to-fall) nil)
-       (tween/wait 4)
-       #(log "chain")
+      [#(do (log "start")
+            (reset! stage :transitioning-to-fall) nil)
+       (tween/wait 1)
        #(do
           (let [chain-top (clone! :chain-top)]
             (hook+ chain-top :update :follow-drop-point #'chain-chase-drop)
             (hook+ chain-top :update :update-chain  #'update-chain))
           nil);; play little rise animation, then transition to :fall
-       (tween/wait 4)
-       #(log "going up")
-       #(do (hook+ @player-obj :fixed-update :start-going-up #'start-going-up!)
+       (tween/wait 2)
+       #(do (hook+ @player-obj :fixed-update :start-going-up (start-going-up! 0.45))
+            (hook+ @camera-obj :fixed-update :start-going-up (start-going-up! 0.3))
             nil)
-       (tween/wait 4)
-       #(log "next stage")
-       #(do (start-game :fall) nil)])))
+       (tween/wait 2)
+       #(do
+          (start-stage! :fall) nil)])))
 
 
-
-
-(defn start-game [new-stage]
+(defn start-stage! [new-stage]
   (reset! stage new-stage)
   (hard.core/clear-cloned!)
   (obs/stop-dropping-everything)
@@ -152,20 +147,22 @@
   (when (= new-stage :start-to-fall))
 
   (when (= new-stage :fall)
-    (hard.core/clone! :sun)
     (reset! player-obj (clone! :player))
     (reset! camera-obj (clone! :fall-camera))
+    (reset! drop-x 0)
+    (reset! drop-y 0)
 
     (let [head (first (children @player-obj))]
       (hook+ @player-obj :update :handle-input  #'handle-input)
-      (hook+ head :on-trigger-enter :player-collision  #'player-collision-fn)
+      (hook+ head :on-trigger-enter :player-collision  #'log-collision)
       (hook+ @camera-obj :update :chase-player  #'camera-chase-player)
       (let [chain-top (clone! :chain-top)]
-        (hook+ chain-top :update :follow-drop-point chain-chase-drop)
+        (hook+ chain-top :update :follow-drop-point #'chain-chase-drop)
         (hook+ chain-top :update :update-chain  #'update-chain)))))
 
-(start-game :start)
+(start-stage! :start)
+(start-stage! :fall)
 
-(start-game :reset)
+(start-stage! :reset)
 ;(start-falling-objs nil)
 
