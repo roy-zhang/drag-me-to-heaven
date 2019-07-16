@@ -5,9 +5,14 @@
             [arcadia.linear :as l]
             [game.obstacles :as obs]
             [game.util :as util])
-  (:import [UnityEngine Vector3 Transform Time Mathf Screen SpringJoint LineRenderer Camera]))
+  (:import [UnityEngine Vector3 Transform Time Mathf Screen SpringJoint LineRenderer Camera Skybox]))
 
 (def stage (atom :start))
+(def drop-x (atom 0))
+(def drop-y (atom 0))
+(def player-obj (atom (clone! :player)))
+(def camera-obj (atom (clone! :start-camera)))
+
 
 (defn log-collision [obj role-key collision]
   (log "just bumped into" (.. collision obj name)))
@@ -52,8 +57,7 @@
   (when (input/key? "d")
     (util/move! obj (l/v3 0 0 player-speed))))
 
-(def drop-x (atom 0))
-(def drop-y (atom 0))
+
 
 ;(defmutable dropper-x [^float x])
 ;(defmutable dropper-y [^float y])
@@ -63,7 +67,7 @@
     (+ i (* 0.3 (- (rand) 0.5)))
     -20 20))
 
-(defn start-moving-drop! [_ _]
+(defn move-drop-point! [_ _]
   (swap! drop-x rand-adj)
   (swap! drop-y rand-adj))
 
@@ -91,18 +95,21 @@
   (reset! drop-x 0)
   (reset! drop-y 0)
   (let [game-state (clone! :game-state)]
-    (hook+ game-state :fixed-update :moving-drop #'start-moving-drop!)
-    ;(obs/start-dropping-mountains! 5 drop-x drop-y)
+    (hook+ game-state :fixed-update :moving-drop #'move-drop-point!)
+    (obs/start-dropping-mountains! 5 drop-x drop-y)
     (obs/start-dropping-rings! 1 drop-x drop-y)))
 
+(obs/start-dropping-mountains! 5 drop-x drop-y)
+
+(obs/start-dropping-rings! 1 drop-x drop-y)
 
 ;; ------------ start stage
 
 (defn slow-pan [camera-obj _]
   (.. camera-obj transform (LookAt (local-position @player-obj)))
-  (local-position! camera-obj (l/v3 (* 4 (Mathf/Cos (/ Time/realtimeSinceStartup 5)))
+  (local-position! camera-obj (l/v3 (* 7 (Mathf/Cos (/ Time/realtimeSinceStartup 5)))
                                     (Y camera-obj)
-                                    (* 4 (Mathf/Sin (/ Time/realtimeSinceStartup 5))))))
+                                    (* 7 (Mathf/Sin (/ Time/realtimeSinceStartup 5))))))
 
 (defn start-going-up! [speed]
   (fn [obj _]
@@ -125,7 +132,7 @@
        #(do (hook+ @player-obj :fixed-update :start-going-up (start-going-up! 0.45))
             (hook+ @camera-obj :fixed-update :start-going-up (start-going-up! 0.3))
             nil)
-       (tween/wait 2)
+       (tween/wait 2.0)
        #(do
           (start-stage! :fall) nil)])))
 
@@ -142,7 +149,7 @@
     (-> (clone! :dunes)
       (material-color! (color 0 0 0)))
     (hook+ @camera-obj :fixed-update :slow-pan #'slow-pan)
-    (hook+ @player-obj :update :transition-to-fall-on-input transition-to-fall-on-input))
+    (hook+ @player-obj :update :transition-to-fall-on-input #'transition-to-fall-on-input))
 
   (when (= new-stage :start-to-fall))
 
@@ -157,12 +164,12 @@
       (hook+ head :on-trigger-enter :player-collision  #'log-collision)
       (hook+ @camera-obj :update :chase-player  #'camera-chase-player)
       (let [chain-top (clone! :chain-top)]
-        (hook+ chain-top :update :follow-drop-point #'chain-chase-drop)
-        (hook+ chain-top :update :update-chain  #'update-chain)))))
-
-(start-stage! :start)
-(start-stage! :fall)
+        (hook+ chain-top :fixed-update :move-drop-point #'move-drop-point!)
+        (hook+ chain-top :fixed-update :follow-drop-point #'chain-chase-drop)
+        (hook+ chain-top :fixed-update :update-chain  #'update-chain)))))
 
 (start-stage! :reset)
-;(start-falling-objs nil)
 
+(start-stage! :fall)
+
+(start-stage! :start)

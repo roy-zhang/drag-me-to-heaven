@@ -1,6 +1,5 @@
 (ns game.util
   (:require arcadia.core
-            arcadia.linear
             clojure.string
             [arcadia.linear :as l])
   (:import [UnityEngine Vector3 LineRenderer]))
@@ -21,9 +20,9 @@
   ([_ _] nil)
   ([_ _ _] nil))
 
-;; use this to generate simple chain points to draw
-(defn bezier-verts [start end sectionsCount])
-
+;; use this to generate simple chain points to draw, a vec of l3 vectors
+(defn bezier-verts [start end points]
+  ())
 
 
 (defn set-line-renderer-verts ^LineRenderer [^LineRenderer lr, verts]
